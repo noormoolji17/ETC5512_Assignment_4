@@ -120,7 +120,7 @@ library(lubridate)
 ```{r}
 #| label: load-data
 
-# Load the raw patronage data : raw file from data.vic.gov.au
+# Load the raw patronage data 
 patronage_raw <- read_csv(
   "data/raw/monthly_average_patronage_by_day_type_and_by_mode2.csv"
 )
@@ -177,20 +177,42 @@ recovery <- patronage_clean |>
 ```{r}
 # Step 5: Day of week breakdown for Sub-question 3
 # Compare 2019 vs 2025 for MetroTrain specifically
-dow_comparison <-
-   patronage_clean|>
+peak_2019_dow <- patronage_clean |>
+  filter(Mode == "MetroTrain", Year == 2019) |>
+  group_by(Day_of_week) |>
+  summarise(peak = mean(Pax_daily), .groups = "drop")
+
+```
+:::
+
+```{r}
+#| label: dow-comparison
+
+# Step 5b: Day of week breakdown for Sub-question 3
+# Compare 2019 vs 2025 for MetroTrain, against EACH DAY'S OWN 
+# 2019 baseline 
+# percentage per day
+
+dow_comparison <- patronage_clean |>
   filter(
     Mode == "MetroTrain",
     Year %in% c(2019, 2025)
   ) |>
   group_by(Year, Day_of_week) |>
   summarise(avg_daily = mean(Pax_daily), .groups = "drop") |>
-  left_join(
-    peak_2019 |> filter(Mode == "MetroTrain") |> select(peak),
-    by = character()
-  ) |>
+  left_join(peak_2019_dow, by = "Day_of_week") |>
   mutate(pct_of_peak = round(avg_daily / peak * 100, 1))
 
+dow_comparison
+```
+
+::: panel-tabset
+```{r}
+#| label: save-processed-patronage
+
+# Save processed fuel data
+write_csv(recovery, "data/processed/recovery_by_mode.csv")
+write_csv(dow_comparison, "data/processed/dow_comparison.csv")
 ```
 
 <!-- Task 2 Tab: Writing your blogpost -->
