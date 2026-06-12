@@ -1,0 +1,224 @@
+---
+title: "What is your blogpost title? Add it here??"
+subtitle: "Assignment 4 ETC5512"
+author: "Who are you?? Add your name here"
+format: html
+editor: visual
+---
+
+::: panel-tabset
+<!-- Task 1 Tab: Data and Documenting -->
+
+## Data and Documenting
+
+### **Research Question**
+
+My research question is:
+
+*"Has Melbourne's public transport network fully recovered from COVID-19, and what does the pattern of recovery reveal about how commuter behavior has permanently changed?"*
+
+**Why I chose this question:**
+
+I first explored Melbourne by train during a month-long visit before COVID. It was busy, reliable, felt like a city that ran on its public transport. Returning later, the same trains felt noticeably emptier, particularly at the start and end of the week. That observation stuck with me and became the seed of this analysis.
+
+**Sub-questions:**
+
+1.  Which PT modes have recovered to pre-COVID levels and which haven't?
+2.  Is the recovery gap driven specifically by weekday commuter travel?
+3.  Which days of the week show the weakest recovery and does this suggest a permanent shift toward hybrid work?
+4.  Does the persistence of the patronage gap despite rising fuel costs suggest the shift is structural rather than price-driven?
+
+### Data Description
+
+#### Dataset 1: Monthly Average Patronage by Day Type and by Mode
+
+**Source:** Department of Transport and Planning, Victoria\
+**Portal:** data.vic.gov.au\
+**URL:** https://discover.data.vic.gov.au/dataset/monthly-average-patronage-by-day-type-and-by-mode\
+**Licence:** Creative Commons Attribution 4.0 International\
+**Last accessed:** 7th June 2026
+
+**Type of data:**
+
+This is administrative sample data not a census of all trips. As stated in the dataset documentation:
+
+*"Patronage is a count of patron boarding onto services with the exclusion of train transfers. Patrons includes all persons 5 and over, excluding drivers and station staff."*
+
+*"Patronage data is derived from myki ticketing data. As ticketing data provides an incomplete picture of the number of people using public transport, DTP also conducts a patronage survey to supplement myki data. The purpose of the patronage survey is to determine the transaction rate, which is the percentage of passengers who ‘touch-on’ when they travel. Ticketing transactions are boosted according to the transaction rate to provide an estimate of total patronage."*
+
+This means every figure in the data set is an **estimate** of total boardings, not a direct count.
+
+**Data quality notes from the documentation:**
+
+- Patronage estimates are rounded to the nearest 50; values less than 50 are rounded up to 50
+
+- As of January 2021, metropolitan train patronage uses barrier count data where available, in place of survey observations, which means the methodology changed mid-series, which should be noted when interpreting 2020 vs 2021 figures
+
+- From 2021 onwards, regional train data includes non-myki patronage (e.g. paper ticket counts) prior to this it does not, meaning regional train figures before and after 2021 are not directly comparable
+
+- Regional bus data excludes services that are not myki-enabled
+
+- Data is updated monthly with a 2-month lag
+
+**Ethical considerations:** This dataset contains no individual-level data. All figures are pre-aggregated to monthly averages so there is no information about individual passengers, their journeys, demographics or personal details. There are no privacy concerns associated with this dataset.
+
+**Data Dictionary**
+
+| Variable | Type | Description |
+|------------------------|------------------------|------------------------|
+| Year | Integer | Calendar year of observation (2018–2026) |
+| Month | Integer | Month number (1–12) |
+| Month_name | Character | Abbreviated month name (e.g. Jan, Feb) |
+| Day_of_week | Character | Day of week (Monday through Sunday) |
+| Day_type | Character | Normal Weekday, School Holiday Weekday, or Weekend |
+| Mode | Character | PT mode: MetroTrain, Tram, MetroBus, RegionalTrain, RegionalBus |
+| Pax_daily | Numeric | Daily average passenger boardings for that month, rounded to nearest 50 |
+
+------------------------------------------------------------------------
+
+#### Dataset 2: ABS Consumer Price Index — Automotive Fuel
+
+**Source:** Australian Bureau of Statistics (catalogue 6401.0)\
+**Portal:** abs.gov.au\
+**URL:** https://www.abs.gov.au/statistics/economy/price-indexes-and-inflation/consumer-price-index-australia/latest-release **Licence:** Creative Commons Attribution 4.0 Australia\
+**Last accessed:**
+
+**Type of data:** The CPI is based on a sample survey, the ABS samples approximately 100,000 prices across retail outlets nationally each month. It is not a census of all prices. The automotive fuel series measures price change relative to a reference base period (September 2025 = 100).
+
+**Why this data is suitable:** This data set provides monthly national fuel price data over the same period as the patronage data. It allows me to get some context with the patronage recovery story, specifically to examine whether periods of high fuel prices coincided with changes in PT patronage. Note that this data set is used contextually and not to establish causation (see limitations below).
+
+**Data limitations:**
+
+- This is a national (Australia-wide) figure as Melbourne-specific fuel prices are not published separately by the ABS. The national index is used as a reasonable proxy given fuel prices are largely set by global oil markets and are broadly consistent across capital cities
+- The series was extracted programmatically from ABS CPI Table 3 (640103.xlsx), which contains 250+ columns covering all CPI categories. The automotive fuel series was identified and isolated in R using `readxl` and `stringr`
+- Care must be taken to avoid ecological fallacy as just because fuel prices and patronage change at the same time does not mean one caused the other. This dataset is used only to contextualise the structural nature of the patronage gap, not to claim causation
+
+**Ethical considerations:** This dataset contains aggregate price index data only. There is no individual-level data and no privacy concerns.
+
+### Download and Processing Steps
+
+#### Dataset 1: Patronage data
+
+**Download steps:**
+
+1.  Navigate to: https://discover.data.vic.gov.au/dataset/monthly-average-patronage-by-day-type-and-by-mode
+2.  Click the "Download data" button
+3.  Save as `data/raw/monthly_average_patronage_by_day_type_and_by_mode2.csv`
+
+**Processing:**
+
+```{r}
+#| message: false
+#| warning: false
+#| label: load-libraries
+
+library(tidyverse)
+library(readxl)
+library(lubridate)
+```
+
+```{r}
+#| label: load-data
+
+# Load the raw patronage data : raw file from data.vic.gov.au
+patronage_raw <- read_csv(
+  "data/raw/monthly_average_patronage_by_day_type_and_by_mode2.csv"
+)
+
+glimpse(patronage_raw)
+```
+
+```{r}
+#| label: clean-mode-labels
+
+# The raw Mode column has no spaces e.g."MetroTrain", "RegionalBus"
+# We use stringr to add spaces for readable plot labels
+
+patronage_clean <-
+  patronage_raw |>
+  mutate(
+    Mode_label = Mode |>
+      str_replace("Metro", "Metro ") |>
+      str_replace("Regional", "Regional ") |>
+      str_trim()
+  )
+
+# Verify cleaning worked
+patronage_clean |> distinct(Mode, Mode_label)
+```
+
+```{r}
+#| label: calculate-baseline
+
+# Calculate 2019 average daily patronage by mode (Normal Weekday only)
+# 2019 is used as the pre-COVID reference year
+# Normal Weekday is the most policy-relevant day type as it captures regular commuter behaviour
+
+peak_2019 <-
+  patronage_clean |>
+  filter(Year == 2019, 
+         Day_type == "Normal Weekday") |>
+  group_by(Mode) |>
+  summarise(peak = mean(Pax_daily), .groups = "drop")
+
+peak_2019
+```
+
+```{r}
+# Calculate % of 2019 peak for each year/mode
+recovery <- patronage_clean |>
+  filter(Day_type == "Normal Weekday") |>
+  group_by(Year, Mode, Mode_label) |>
+  summarise(avg_daily = mean(Pax_daily), .groups = "drop") |>
+  left_join(peak_2019, by = "Mode") |>
+  mutate(pct_of_peak = avg_daily / peak * 100)
+```
+
+```{r}
+# Step 5: Day of week breakdown for Sub-question 3
+# Compare 2019 vs 2025 for MetroTrain specifically
+dow_comparison <-
+   patronage_clean|>
+  filter(
+    Mode == "MetroTrain",
+    Year %in% c(2019, 2025)
+  ) |>
+  group_by(Year, Day_of_week) |>
+  summarise(avg_daily = mean(Pax_daily), .groups = "drop") |>
+  left_join(
+    peak_2019 |> filter(Mode == "MetroTrain") |> select(peak),
+    by = character()
+  ) |>
+  mutate(pct_of_peak = round(avg_daily / peak * 100, 1))
+
+```
+
+<!-- Task 2 Tab: Writing your blogpost -->
+
+## Blog post
+
+### What's in this section
+
+Here is where you should write your blogpost! (Task 2)
+
+### Blogpost Structure
+
+There is no strict structure for you to follow. However, here is a skeleton structure you may find helpful.
+
+1.  Title (is set at the top of this document)
+2.  Motivation\
+3.  Data\
+4.  Analysis\
+5.  Conclusions\
+6.  References
+
+<!-- Task 3 Tab: Behind the Scenes -  -->
+
+## Behind the Scenes
+
+### What's in this section
+
+Here is where you should tell us about your reflection on your analysis (Task 3).
+
+Again, these are the details about **your** perspective and the gritty details behind the scenes of your analysis.
+:::
