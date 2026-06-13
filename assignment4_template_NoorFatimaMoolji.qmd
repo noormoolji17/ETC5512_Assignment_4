@@ -215,6 +215,82 @@ write_csv(recovery, "data/processed/recovery_by_mode.csv")
 write_csv(dow_comparison, "data/processed/dow_comparison.csv")
 ```
 
+#### Dataset 2: Automotive fuel CPI
+
+```{r}
+#| label: load-fuel
+
+# Load the raw Excel file with no column names
+# The file has 10 rows of metadata before data begins
+# Row 1 contains series descriptions used to find our column
+
+fuel_raw <- read_excel(
+  "data/raw/640103.xlsx",
+  sheet = "Data1",
+  col_names = FALSE
+)
+```
+:::
+
+```{r}
+#| label: find-fuel-column
+
+# Find the automotive fuel column dynamically using "stringr"
+# This avoids hardcoding the column number which could change 
+# in future releases of the file
+
+header_row <- as.character(fuel_raw[1, ])
+
+auto_fuel_col <- which(
+  str_detect(header_row, "Automotive fuel") &
+  str_detect(header_row, "Index Numbers")
+)
+```
+
+```{r}
+#| label: extract-fuel
+
+# Extract date and fuel index values
+# Excel stores dates as numbers since 1899-12-30
+# as.Date with origin converts them to proper R dates
+
+fuel <- tibble(
+  date = as.Date(
+    as.numeric(fuel_raw[-(1:10), 1][[1]]),
+    origin = "1899-12-30"
+  ),
+  fuel_index = as.numeric(fuel_raw[-(1:10), auto_fuel_col][[1]])
+) |>
+  filter(!is.na(fuel_index)) |>
+  mutate(
+    Year  = year(date),
+    Month = month(date)
+  )
+
+glimpse(fuel)
+tail(fuel)
+```
+
+```{r}
+#| label: fuel-annual
+
+# Create annual average for joining with patronage data later
+fuel_annual <- fuel |>
+  group_by(Year) |>
+  summarise(avg_fuel_index = mean(fuel_index), .groups = "drop")
+
+fuel_annual
+```
+
+```{r}
+#| label: save-processed-fuel
+
+# Save processed fuel data
+write_csv(fuel, "data/processed/automotive_fuel_cpi.csv")
+write_csv(fuel_annual, "data/processed/fuel_annual.csv")
+```
+
+::: panel-tabset
 <!-- Task 2 Tab: Writing your blogpost -->
 
 ## Blog post
