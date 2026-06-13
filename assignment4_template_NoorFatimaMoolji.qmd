@@ -1,7 +1,7 @@
 ---
-title: "What is your blogpost title? Add it here??"
+title: "Has Melbourne's Public Transport Recovered from COVID-19?"
 subtitle: "Assignment 4 ETC5512"
-author: "Who are you?? Add your name here"
+author: "Noor Fatima Moolji"
 format: html
 editor: visual
 ---
@@ -105,7 +105,7 @@ This means every figure in the data set is an **estimate** of total boardings, n
 2.  Click the "Download data" button
 3.  Save as `data/raw/monthly_average_patronage_by_day_type_and_by_mode2.csv`
 
-**Processing:**
+**Processing Steps:**
 
 ```{r}
 #| message: false
@@ -165,22 +165,31 @@ peak_2019
 ```
 
 ```{r}
-# Calculate % of 2019 peak for each year/mode
+#| label: calculate-recovery
+
 recovery <- patronage_clean |>
   filter(Day_type == "Normal Weekday") |>
   group_by(Year, Mode, Mode_label) |>
   summarise(avg_daily = mean(Pax_daily), .groups = "drop") |>
   left_join(peak_2019, by = "Mode") |>
-  mutate(pct_of_peak = avg_daily / peak * 100)
+  mutate(pct_of_peak = round(avg_daily / peak * 100, 1))
+
+# Preview 2025 figures
+recovery |> 
+  filter(Year == 2025) |>
+  select(Mode_label, avg_daily, pct_of_peak) |>
+  arrange(pct_of_peak)
 ```
 
 ```{r}
-# Step 5: Day of week breakdown for Sub-question 3
-# Compare 2019 vs 2025 for MetroTrain specifically
+#| label: dow-baseline
+
 peak_2019_dow <- patronage_clean |>
   filter(Mode == "MetroTrain", Year == 2019) |>
   group_by(Day_of_week) |>
   summarise(peak = mean(Pax_daily), .groups = "drop")
+
+peak_2019_dow
 
 ```
 :::
@@ -219,6 +228,7 @@ write_csv(dow_comparison, "data/processed/dow_comparison.csv")
 
 ```{r}
 #| label: load-fuel
+#| message: false
 
 # Load the raw Excel file with no column names
 # The file has 10 rows of metadata before data begins
@@ -238,6 +248,7 @@ fuel_raw <- read_excel(
 # Find the automotive fuel column dynamically using "stringr"
 # This avoids hardcoding the column number which could change 
 # in future releases of the file
+
 
 header_row <- as.character(fuel_raw[1, ])
 
